@@ -1,15 +1,13 @@
-const express = require('express');
-const app = express();
+const express = require('express')
+const cors = require('cors')
 
-// ... your middleware and routes (like /api/auth) go here ...
+const app = express()
+app.use(cors())
+app.use(express.json())
 
-const PORT = 5000; 
-app.listen(PORT, () => {
-    console.log(`Server is actively running on port ${PORT}`);
-});
 app.get('/', (req, res) => {
-    res.status(200).json({
-        message: "Welcome to the Client Lead Management System API!",
-        status: "Server is up and running smoothly"
-    });
-});
+  res.json({ message: 'CRM API Running' })
+})
+
+const PORT = 5000
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`))

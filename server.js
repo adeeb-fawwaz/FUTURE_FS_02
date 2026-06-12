@@ -1,733 +1,565 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Future Interns – Client Lead Management</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #f5f6fa;
-    --surface: #ffffff;
-    --border: #e2e6ef;
-    --text: #1a1d2e;
-    --muted: #6b7280;
-    --accent: #4f46e5;
-    --accent-light: #eef2ff;
-    --accent-dark: #3730a3;
-    --success: #059669;
-    --success-light: #ecfdf5;
-    --warning: #d97706;
-    --warning-light: #fffbeb;
-    --danger: #dc2626;
-    --danger-light: #fef2f2;
-    --info: #0284c7;
-    --info-light: #e0f2fe;
-    --radius: 10px;
-    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
-  }
-  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+import { useState, useEffect } from "react";
 
-  /* NAV */
-  .nav {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 60px;
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: var(--shadow);
-  }
-  .nav-brand { font-size: 17px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
-  .nav-brand svg { width: 28px; height: 28px; }
-  .nav-actions { display: flex; gap: 10px; }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; border: 1px solid transparent; cursor: pointer; transition: all .15s; white-space: nowrap; }
-  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
-  .btn-outline { background: var(--surface); color: var(--text); border-color: var(--border); }
-  .btn-outline:hover { background: var(--bg); }
-  .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
-  .btn-danger:hover { background: #b91c1c; }
-  .btn-sm { padding: 4px 10px; font-size: 12px; }
-  .btn svg { width: 15px; height: 15px; }
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+const STORAGE_KEY = "crm_leads_v1";
 
-  /* LAYOUT */
-  .main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+const SOURCES  = ["Website", "LinkedIn", "Referral", "Cold Call", "Walk-in", "Other"];
+const STATUSES = ["New", "Contacted", "Converted"];
 
-  /* STATS */
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 2rem; }
-  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; box-shadow: var(--shadow); }
-  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
-  .stat-value { font-size: 26px; font-weight: 600; }
-  .stat-card.total .stat-value { color: var(--accent); }
-  .stat-card.new .stat-value { color: var(--info); }
-  .stat-card.contacted .stat-value { color: var(--warning); }
-  .stat-card.converted .stat-value { color: var(--success); }
+const STATUS_META = {
+  New:       { color: "#3b82f6", bg: "#eff6ff", label: "New"       },
+  Contacted: { color: "#f59e0b", bg: "#fffbeb", label: "Contacted" },
+  Converted: { color: "#10b981", bg: "#ecfdf5", label: "Converted" },
+};
 
-  /* PANEL */
-  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 1.5rem; overflow: hidden; }
-  .panel-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .panel-title { font-size: 15px; font-weight: 600; }
-  .panel-body { padding: 1.25rem; }
+const EMPTY_FORM = { name: "", email: "", phone: "", source: "Website", status: "New", notes: "" };
 
-  /* FORM */
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
-  @media(max-width:768px){ .form-grid { grid-template-columns: 1fr; } }
-  .form-group { display: flex; flex-direction: column; gap: 5px; }
-  .form-label { font-size: 12px; color: var(--muted); font-weight: 500; }
-  .form-control { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--surface); transition: border-color .15s, box-shadow .15s; }
-  .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
-  .form-control.error { border-color: var(--danger); }
+// ── CSS ───────────────────────────────────────────────────────────────────────
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:#f8f5f0;color:#1c1410;}
 
-  /* TOOLBAR */
-  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .search-wrap { position: relative; flex: 1; min-width: 180px; }
-  .search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); width: 15px; height: 15px; }
-  .search-input { width: 100%; padding: 7px 10px 7px 32px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--surface); }
-  .search-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
-  .filter-select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--surface); cursor: pointer; }
-  .filter-select:focus { outline: none; border-color: var(--accent); }
-
-  /* TABLE */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { background: var(--bg); padding: 10px 14px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
-  thead th:hover { color: var(--text); }
-  thead th .sort-icon { margin-left: 4px; opacity: .4; }
-  tbody tr { transition: background .1s; }
-  tbody tr:hover { background: #f8f9fb; }
-  tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: none; }
-
-  /* BADGES */
-  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-  .badge-new { background: var(--info-light); color: var(--info); }
-  .badge-contacted { background: var(--warning-light); color: var(--warning); }
-  .badge-converted { background: var(--success-light); color: var(--success); }
-  .badge-lost { background: var(--danger-light); color: var(--danger); }
-  .badge-website { background: var(--accent-light); color: var(--accent); }
-  .badge-linkedin { background: #e0f0ff; color: #0a66c2; }
-  .badge-cold { background: #f0fdf4; color: #16a34a; }
-  .badge-referral { background: #fdf4ff; color: #9333ea; }
-  .badge-other { background: var(--bg); color: var(--muted); }
-
-  /* AVATAR */
-  .avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; flex-shrink: 0; }
-
-  /* ACTIONS */
-  .actions { display: flex; gap: 5px; }
-
-  /* EMPTY */
-  .empty { text-align: center; padding: 3rem 1rem; color: var(--muted); }
-  .empty svg { width: 40px; height: 40px; margin: 0 auto 12px; opacity: .3; display: block; }
-  .empty p { font-size: 14px; }
-
-  /* MODAL */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
-  .modal { background: var(--surface); border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0,0,0,.2); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
-  .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .modal-title { font-size: 16px; font-weight: 600; }
-  .modal-body { padding: 1.5rem; }
-  .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
-  .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 5px; display: flex; }
-  .modal-close:hover { color: var(--text); background: var(--bg); }
-
-  /* SETTINGS TABS */
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
-  .tab { padding: 8px 14px; font-size: 13px; font-weight: 500; border: none; background: none; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .tab:hover:not(.active) { color: var(--text); }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* HISTORY LOG */
-  .log-entry { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; font-size: 13px; }
-  .log-entry:last-child { border-bottom: none; }
-  .log-time { color: var(--muted); white-space: nowrap; font-size: 11px; flex-shrink: 0; margin-top: 2px; }
-  .log-text { color: var(--text); }
-
-  /* TOAST */
-  .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
-  .toast { background: var(--text); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.2); display: flex; align-items: center; gap: 8px; animation: slideIn .2s; }
-  .toast.success { background: var(--success); }
-  .toast.error { background: var(--danger); }
-  .toast.info { background: var(--accent); }
-  @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-  /* CONFIRM */
-  .confirm-msg { font-size: 14px; color: var(--muted); margin-top: 8px; }
-
-  /* SETTINGS FORM */
-  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 1rem; }
-  .settings-row:last-child { border-bottom: none; }
-  .settings-info { flex: 1; }
-  .settings-info strong { font-size: 13px; font-weight: 500; display: block; }
-  .settings-info span { font-size: 12px; color: var(--muted); }
-  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-  .toggle input { opacity: 0; width: 0; height: 0; }
-  .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: #ccc; border-radius: 20px; transition: .2s; }
-  .toggle-slider:before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
-  input:checked + .toggle-slider { background: var(--accent); }
-  input:checked + .toggle-slider:before { transform: translateX(16px); }
-
-  .section-heading { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 10px; margin-top: 1.5rem; }
-  .section-heading:first-child { margin-top: 0; }
-
-  /* HISTORY PANEL */
-  .history-area { max-height: 300px; overflow-y: auto; }
-</style>
-</head>
-<body>
-
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-brand">
-    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="28" height="28" rx="7" fill="#4f46e5"/>
-      <path d="M7 20l5-8 4 5 3-4 4 7H7z" fill="white" opacity=".9"/>
-      <circle cx="20" cy="9" r="3" fill="white" opacity=".7"/>
-    </svg>
-    Future Interns CRM
-  </div>
-  <div class="nav-actions">
-    <button class="btn btn-outline" onclick="openSettings()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Settings
-    </button>
-    <button class="btn btn-primary" onclick="openAddLead()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Add New Lead
-    </button>
-  </div>
-</nav>
-
-<!-- MAIN -->
-<div class="main">
-
-  <!-- STATS -->
-  <div class="stats" id="stats-row">
-    <!-- filled by JS -->
-  </div>
-
-  <!-- ADD LEAD INLINE PANEL -->
-  <div class="panel" id="add-lead-panel" style="display:none;">
-    <div class="panel-header">
-      <span class="panel-title">Capture New Lead</span>
-      <button class="btn btn-outline btn-sm" onclick="closeAddLead()">Close</button>
-    </div>
-    <div class="panel-body">
-      <div class="form-grid">
-        <div class="form-group">
-          <label class="form-label">Client Name *</label>
-          <input class="form-control" id="f-name" placeholder="e.g. Priya Sharma" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Email Address *</label>
-          <input class="form-control" id="f-email" type="email" placeholder="priya@company.com" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Lead Source</label>
-          <select class="form-control" id="f-source">
-            <option value="Website Contact Form">Website Contact Form</option>
-            <option value="LinkedIn Inbound">LinkedIn Inbound</option>
-            <option value="Cold Email Outreach">Cold Email Outreach</option>
-            <option value="Referral">Referral</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <button class="btn btn-primary" style="height:38px;" onclick="addLead()">Add Lead</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- LEADS TABLE -->
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-title">Client Lead Pipeline</span>
-      <div class="toolbar">
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="search-input" id="search-input" placeholder="Search leads…" oninput="renderTable()" />
-        </div>
-        <select class="filter-select" id="stage-filter" onchange="renderTable()">
-          <option value="">All Stages</option>
-          <option value="New">New</option>
-          <option value="Contacted">Contacted</option>
-          <option value="Converted">Converted</option>
-          <option value="Lost">Lost</option>
-        </select>
-        <select class="filter-select" id="source-filter" onchange="renderTable()">
-          <option value="">All Sources</option>
-          <option value="Website Contact Form">Website</option>
-          <option value="LinkedIn Inbound">LinkedIn</option>
-          <option value="Cold Email Outreach">Cold Email</option>
-          <option value="Referral">Referral</option>
-          <option value="Other">Other</option>
-        </select>
-        <button class="btn btn-outline btn-sm" onclick="exportCSV()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
-        </button>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table id="leads-table">
-        <thead>
-          <tr>
-            <th onclick="sortBy('date')">Date <span class="sort-icon">↕</span></th>
-            <th onclick="sortBy('name')">Client <span class="sort-icon">↕</span></th>
-            <th onclick="sortBy('email')">Email <span class="sort-icon">↕</span></th>
-            <th onclick="sortBy('source')">Source <span class="sort-icon">↕</span></th>
-            <th onclick="sortBy('stage')">Stage <span class="sort-icon">↕</span></th>
-            <th>Notes</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="leads-body"></tbody>
-      </table>
-    </div>
-  </div>
-
-</div>
-
-<!-- EDIT LEAD MODAL -->
-<div class="modal-overlay" id="edit-modal" style="display:none;" onclick="closeEditIfOutside(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title">Edit Lead</span>
-      <button class="modal-close" onclick="closeEdit()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="edit-id" />
-      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="form-group">
-          <label class="form-label">Client Name *</label>
-          <input class="form-control" id="edit-name" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Email *</label>
-          <input class="form-control" id="edit-email" type="email" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Lead Source</label>
-          <select class="form-control" id="edit-source">
-            <option>Website Contact Form</option>
-            <option>LinkedIn Inbound</option>
-            <option>Cold Email Outreach</option>
-            <option>Referral</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Pipeline Stage</label>
-          <select class="form-control" id="edit-stage">
-            <option>New</option>
-            <option>Contacted</option>
-            <option>Converted</option>
-            <option>Lost</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group" style="margin-top:12px;">
-        <label class="form-label">Notes</label>
-        <textarea class="form-control" id="edit-notes" rows="3" style="resize:vertical;"></textarea>
-      </div>
-      <div style="margin-top:16px;">
-        <p class="section-heading">Interaction History</p>
-        <div class="history-area" id="edit-history"></div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <input class="form-control" id="new-log" placeholder="Add interaction note…" style="flex:1;" onkeydown="if(event.key==='Enter')addLog()" />
-          <button class="btn btn-outline btn-sm" onclick="addLog()">Log</button>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeEdit()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
-    </div>
-  </div>
-</div>
-
-<!-- DELETE CONFIRM MODAL -->
-<div class="modal-overlay" id="delete-modal" style="display:none;" onclick="closeDeleteIfOutside(event)">
-  <div class="modal" style="max-width:380px;">
-    <div class="modal-header">
-      <span class="modal-title">Delete Lead</span>
-      <button class="modal-close" onclick="closeDelete()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:14px;">Are you sure you want to permanently delete <strong id="delete-name"></strong>?</p>
-      <p class="confirm-msg">This action cannot be undone.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeDelete()">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- SETTINGS MODAL -->
-<div class="modal-overlay" id="settings-modal" style="display:none;" onclick="closeSettingsIfOutside(event)">
-  <div class="modal" style="max-width:560px;">
-    <div class="modal-header">
-      <span class="modal-title">Settings</span>
-      <button class="modal-close" onclick="closeSettings()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab('general')">General</button>
-        <button class="tab" onclick="switchTab('pipeline')">Pipeline</button>
-        <button class="tab" onclick="switchTab('notifications')">Notifications</button>
-        <button class="tab" onclick="switchTab('data')">Data</button>
-      </div>
-
-      <!-- GENERAL -->
-      <div class="tab-panel active" id="tab-general">
-        <p class="section-heading">Workspace</p>
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">Workspace Name</label>
-          <input class="form-control" id="s-workspace" value="Future Interns" />
-        </div>
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">Admin Email</label>
-          <input class="form-control" id="s-email" type="email" value="admin@futureinterns.io" />
-        </div>
-        <p class="section-heading">Display</p>
-        <div class="settings-row">
-          <div class="settings-info"><strong>Compact table rows</strong><span>Reduce padding in lead table</span></div>
-          <label class="toggle"><input type="checkbox" id="s-compact" onchange="applyCompact(this)" /><span class="toggle-slider"></span></label>
-        </div>
-        <div class="settings-row">
-          <div class="settings-info"><strong>Show avatar initials</strong><span>Display colored initials in table</span></div>
-          <label class="toggle"><input type="checkbox" id="s-avatars" checked onchange="renderTable()" /><span class="toggle-slider"></span></label>
-        </div>
-      </div>
-
-      <!-- PIPELINE -->
-      <div class="tab-panel" id="tab-pipeline">
-        <p class="section-heading">Stage Labels</p>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Rename pipeline stages to match your workflow.</p>
-        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="form-group"><label class="form-label">Stage 1</label><input class="form-control" id="sl-1" value="New" /></div>
-          <div class="form-group"><label class="form-label">Stage 2</label><input class="form-control" id="sl-2" value="Contacted" /></div>
-          <div class="form-group"><label class="form-label">Stage 3</label><input class="form-control" id="sl-3" value="Converted" /></div>
-          <div class="form-group"><label class="form-label">Stage 4</label><input class="form-control" id="sl-4" value="Lost" /></div>
-        </div>
-        <p class="section-heading" style="margin-top:1.5rem;">Default Lead Source</p>
-        <div class="form-group">
-          <select class="form-control" id="s-default-source">
-            <option>Website Contact Form</option>
-            <option>LinkedIn Inbound</option>
-            <option>Cold Email Outreach</option>
-            <option>Referral</option>
-            <option>Other</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- NOTIFICATIONS -->
-      <div class="tab-panel" id="tab-notifications">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Control which events trigger a notification.</p>
-        <div class="settings-row">
-          <div class="settings-info"><strong>New lead added</strong><span>Show toast when a lead is captured</span></div>
-          <label class="toggle"><input type="checkbox" id="n-new" checked /><span class="toggle-slider"></span></label>
-        </div>
-        <div class="settings-row">
-          <div class="settings-info"><strong>Stage changed</strong><span>Notify when a lead moves stages</span></div>
-          <label class="toggle"><input type="checkbox" id="n-stage" checked /><span class="toggle-slider"></span></label>
-        </div>
-        <div class="settings-row">
-          <div class="settings-info"><strong>Lead deleted</strong><span>Notify on deletion</span></div>
-          <label class="toggle"><input type="checkbox" id="n-del" checked /><span class="toggle-slider"></span></label>
-        </div>
-        <div class="settings-row">
-          <div class="settings-info"><strong>Export completed</strong><span>Notify after CSV export</span></div>
-          <label class="toggle"><input type="checkbox" id="n-export" checked /><span class="toggle-slider"></span></label>
-        </div>
-      </div>
-
-      <!-- DATA -->
-      <div class="tab-panel" id="tab-data">
-        <p class="section-heading">Import / Export</p>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:8px;">
-            <div><strong style="font-size:13px;">Export all leads</strong><br><span style="font-size:12px;color:var(--muted);">Download as CSV file</span></div>
-            <button class="btn btn-outline btn-sm" onclick="exportCSV();closeSettings();">Export CSV</button>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:8px;">
-            <div><strong style="font-size:13px;">Clear all leads</strong><br><span style="font-size:12px;color:var(--muted);">Permanently delete all lead data</span></div>
-            <button class="btn btn-danger btn-sm" onclick="clearAllLeads()">Clear All</button>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:8px;">
-            <div><strong style="font-size:13px;">Load sample data</strong><br><span style="font-size:12px;color:var(--muted);">Populate with demo leads</span></div>
-            <button class="btn btn-outline btn-sm" onclick="loadSampleData()">Load Samples</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeSettings()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST CONTAINER -->
-<div class="toast-container" id="toast-container"></div>
-
-<script>
-// ─── STATE ──────────────────────────────────────────────────────────────────
-let leads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
-let sortField = 'date';
-let sortDir = -1;
-let pendingDeleteId = null;
-
-const COLORS = ['#4f46e5','#0284c7','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0891b2'];
-function avatarColor(name){ let h=0; for(let c of name)h=(h*31+c.charCodeAt(0))&0xffff; return COLORS[h%COLORS.length]; }
-function initials(name){ return name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2); }
-function fmtDate(iso){ const d=new Date(iso); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
-
-// ─── STATS ───────────────────────────────────────────────────────────────────
-function renderStats(){
-  const total=leads.length, nw=leads.filter(l=>l.stage==='New').length,
-    ct=leads.filter(l=>l.stage==='Contacted').length, cv=leads.filter(l=>l.stage==='Converted').length;
-  document.getElementById('stats-row').innerHTML=`
-    <div class="stat-card total"><div class="stat-label">Total Leads</div><div class="stat-value">${total}</div></div>
-    <div class="stat-card new"><div class="stat-label">New</div><div class="stat-value">${nw}</div></div>
-    <div class="stat-card contacted"><div class="stat-label">Contacted</div><div class="stat-value">${ct}</div></div>
-    <div class="stat-card converted"><div class="stat-label">Converted</div><div class="stat-value">${cv}</div></div>
-  `;
+/* ── NAVBAR ── */
+.crm-nav{
+  position:sticky;top:0;z-index:200;
+  background:#ffffffee;backdrop-filter:blur(14px);
+  border-bottom:1px solid #e8e0d6;
+  height:60px;padding:0 5%;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.crm-nav-brand{display:flex;align-items:center;gap:10px;}
+.crm-nav-logo{
+  font-family:'DM Serif Display',serif;
+  font-size:1.25rem;color:#b87333;letter-spacing:-0.5px;
+}
+.crm-nav-sub{font-size:0.8rem;color:#9a8878;font-weight:500;}
+.crm-nav-badge{
+  font-size:0.75rem;font-weight:600;
+  background:#b8733318;color:#b87333;
+  border:1px solid #b8733330;
+  padding:4px 12px;border-radius:20px;
 }
 
-// ─── TABLE ───────────────────────────────────────────────────────────────────
-function sourceBadge(s){
-  const map={'Website Contact Form':'website','LinkedIn Inbound':'linkedin','Cold Email Outreach':'cold','Referral':'referral'};
-  const cls=map[s]||'other';
-  const lbl={'website':'Website','linkedin':'LinkedIn','cold':'Cold Email','referral':'Referral','other':s};
-  return `<span class="badge badge-${cls}">${lbl[cls]||s}</span>`;
+/* ── MAIN ── */
+.crm-main{max-width:1140px;margin:0 auto;padding:36px 5% 60px;}
+
+/* ── STATS ── */
+.crm-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+  margin-bottom:32px;
 }
-function stageBadge(s){
-  const cls={New:'new',Contacted:'contacted',Converted:'converted',Lost:'lost'}[s]||'new';
-  return `<span class="badge badge-${cls}">${s}</span>`;
+.crm-stat{
+  background:#fff;border:1px solid #e8e0d6;border-radius:12px;
+  padding:20px 22px;
+}
+.crm-stat-num{
+  font-family:'DM Serif Display',serif;
+  font-size:2rem;line-height:1;margin-bottom:4px;
+}
+.crm-stat-lbl{font-size:0.78rem;color:#9a8878;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ── TOOLBAR ── */
+.crm-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;margin-bottom:20px;
+}
+.crm-toolbar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.crm-title{
+  font-family:'DM Serif Display',serif;
+  font-size:1.4rem;color:#1c1410;
+}
+.crm-filter-select{
+  background:#fff;border:1px solid #e8e0d6;border-radius:8px;
+  padding:7px 14px;font-size:0.85rem;color:#1c1410;
+  font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;
+}
+.crm-filter-select:focus{border-color:#b87333;}
+
+.crm-search{
+  background:#fff;border:1px solid #e8e0d6;border-radius:8px;
+  padding:7px 14px;font-size:0.85rem;color:#1c1410;
+  font-family:'DM Sans',sans-serif;outline:none;width:220px;
+}
+.crm-search:focus{border-color:#b87333;}
+
+/* ── BUTTONS ── */
+.btn{
+  border:none;border-radius:8px;font-family:'DM Sans',sans-serif;
+  font-weight:600;cursor:pointer;transition:all .18s;display:inline-flex;
+  align-items:center;gap:6px;
+}
+.btn:active{transform:scale(.97);}
+.btn-add{
+  background:#b87333;color:#fff;
+  padding:9px 20px;font-size:0.88rem;
+}
+.btn-add:hover{background:#a3632a;}
+.btn-cancel{
+  background:#f3ede6;color:#9a8878;
+  padding:9px 20px;font-size:0.88rem;
+}
+.btn-cancel:hover{background:#e8dfd4;}
+.btn-save{
+  background:#10b981;color:#fff;
+  padding:6px 14px;font-size:0.8rem;border-radius:6px;
+}
+.btn-save:hover{background:#0da271;}
+.btn-del{
+  background:#fee2e2;color:#ef4444;
+  padding:6px 12px;font-size:0.8rem;border-radius:6px;
+  border:none;cursor:pointer;font-weight:600;transition:all .18s;
+}
+.btn-del:hover{background:#ef4444;color:#fff;}
+.btn-edit{
+  background:#f0f7ff;color:#3b82f6;
+  padding:6px 12px;font-size:0.8rem;border-radius:6px;
+  border:none;cursor:pointer;font-weight:600;transition:all .18s;
+}
+.btn-edit:hover{background:#3b82f6;color:#fff;}
+
+/* ── FORM PANEL ── */
+.crm-form-panel{
+  background:#fff;border:1px solid #e8e0d6;border-radius:14px;
+  padding:28px;margin-bottom:24px;
+  animation:slideDown .25s ease both;
+}
+@keyframes slideDown{
+  from{opacity:0;transform:translateY(-10px);}
+  to{opacity:1;transform:translateY(0);}
+}
+.crm-form-title{
+  font-size:1rem;font-weight:600;color:#1c1410;margin-bottom:20px;
+}
+.crm-form-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;
+}
+.crm-fg{display:flex;flex-direction:column;gap:5px;}
+.crm-fg.full{grid-column:1/-1;}
+.crm-fg label{
+  font-size:0.72rem;font-weight:600;color:#9a8878;
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.crm-fg input,.crm-fg select,.crm-fg textarea{
+  background:#f8f5f0;border:1px solid #e8e0d6;border-radius:8px;
+  padding:9px 13px;font-size:0.88rem;color:#1c1410;
+  font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;
+}
+.crm-fg input:focus,.crm-fg select:focus,.crm-fg textarea:focus{
+  border-color:#b87333;background:#fff;
+}
+.crm-fg textarea{min-height:72px;resize:vertical;}
+.crm-form-actions{
+  grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end;
+  margin-top:4px;
 }
 
-function renderTable(){
-  const q=document.getElementById('search-input').value.toLowerCase();
-  const sf=document.getElementById('stage-filter').value;
-  const so=document.getElementById('source-filter').value;
-  const showAv=document.getElementById('s-avatars')?.checked!==false;
+/* ── TABLE ── */
+.crm-table-wrap{
+  background:#fff;border:1px solid #e8e0d6;border-radius:14px;
+  overflow:hidden;
+}
+.crm-table{width:100%;border-collapse:collapse;}
+.crm-table thead tr{background:#f5f0ea;}
+.crm-table th{
+  padding:11px 16px;text-align:left;
+  font-size:0.72rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.5px;color:#9a8878;
+  white-space:nowrap;
+}
+.crm-table td{
+  padding:13px 16px;border-top:1px solid #f0ebe3;
+  font-size:0.86rem;vertical-align:middle;
+}
+.crm-table tbody tr{transition:background .15s;}
+.crm-table tbody tr:hover td{background:#fdf9f5;}
 
-  let rows=[...leads];
-  if(q) rows=rows.filter(l=>l.name.toLowerCase().includes(q)||l.email.toLowerCase().includes(q));
-  if(sf) rows=rows.filter(l=>l.stage===sf);
-  if(so) rows=rows.filter(l=>l.source===so);
+/* Status badge */
+.status-badge{
+  display:inline-flex;align-items:center;
+  padding:3px 11px;border-radius:20px;
+  font-size:0.75rem;font-weight:600;white-space:nowrap;
+}
 
-  rows.sort((a,b)=>{
-    let va=a[sortField]||'', vb=b[sortField]||'';
-    return va<vb ? sortDir : va>vb ? -sortDir : 0;
+/* Status dropdown */
+.status-select{
+  border:1.5px solid;border-radius:20px;
+  padding:4px 10px;font-size:0.78rem;font-weight:600;
+  background:transparent;cursor:pointer;
+  font-family:'DM Sans',sans-serif;outline:none;
+  transition:opacity .2s;
+}
+.status-select:hover{opacity:.8;}
+
+/* Source tag */
+.source-tag{
+  background:#f5f0ea;color:#9a8878;
+  padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:500;
+}
+
+/* Notes cell */
+.note-view{
+  color:#b87333;cursor:pointer;font-size:0.82rem;
+  border-bottom:1px dashed #b87333;max-width:160px;
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.note-view:empty::before{content:'+ Add note';color:#c8a888;}
+.note-edit-wrap{display:flex;gap:6px;align-items:center;}
+.note-edit-wrap input{
+  border:1px solid #e8e0d6;border-radius:6px;
+  padding:4px 8px;font-size:0.82rem;width:130px;
+  font-family:'DM Sans',sans-serif;outline:none;
+}
+.note-edit-wrap input:focus{border-color:#b87333;}
+
+/* Action col */
+.crm-actions{display:flex;gap:6px;flex-wrap:nowrap;}
+
+/* Empty + loading */
+.crm-empty{
+  text-align:center;padding:64px 20px;color:#9a8878;font-size:.95rem;
+}
+.crm-empty-icon{font-size:3rem;margin-bottom:12px;}
+
+/* Toast */
+.crm-toast{
+  position:fixed;bottom:28px;right:28px;z-index:999;
+  background:#1c1410;color:#f5ede3;
+  padding:12px 22px;border-radius:10px;
+  font-size:.86rem;font-weight:500;
+  opacity:0;transform:translateY(12px);pointer-events:none;
+  transition:all .35s;
+}
+.crm-toast.show{opacity:1;transform:translateY(0);}
+
+/* Modal */
+.crm-modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  z-index:300;display:flex;align-items:center;justify-content:center;
+  animation:fadeIn .2s ease;
+}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.crm-modal{
+  background:#fff;border-radius:16px;padding:32px;
+  width:min(520px,94vw);max-height:90vh;overflow-y:auto;
+  animation:slideDown .25s ease;
+}
+.crm-modal-title{
+  font-family:'DM Serif Display',serif;font-size:1.2rem;
+  color:#1c1410;margin-bottom:20px;
+}
+.crm-modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+/* Responsive */
+@media(max-width:900px){
+  .crm-stats{grid-template-columns:1fr 1fr;}
+  .crm-table{display:block;overflow-x:auto;}
+}
+@media(max-width:600px){
+  .crm-stats{grid-template-columns:1fr 1fr;}
+  .crm-form-grid{grid-template-columns:1fr;}
+  .crm-fg.full{grid-column:1;}
+  .crm-toolbar{flex-direction:column;align-items:flex-start;}
+  .crm-search{width:100%;}
+}
+`;
+
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function App() {
+  // ── State ──
+  const [leads, setLeads]           = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch { return []; }
+  });
+  const [showForm, setShowForm]     = useState(false);
+  const [form, setForm]             = useState(EMPTY_FORM);
+  const [editingId, setEditingId]   = useState(null);   // edit lead in modal
+  const [editModal, setEditModal]   = useState(false);
+  const [noteEdit, setNoteEdit]     = useState({ id: null, text: "" });
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [search, setSearch]         = useState("");
+  const [toast, setToast]           = useState("");
+
+  // ── Persist ──
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+  }, [leads]);
+
+  // ── Toast helper ──
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
+  };
+
+  // ── CRUD ──
+  const saveLead = () => {
+    if (!form.name.trim())  return alert("Name is required.");
+    if (!form.email.trim()) return alert("Email is required.");
+    if (!/\S+@\S+\.\S+/.test(form.email)) return alert("Enter a valid email.");
+
+    if (editingId) {
+      setLeads(prev => prev.map(l => l.id === editingId ? { ...l, ...form } : l));
+      showToast("✅ Lead updated!");
+      setEditModal(false); setEditingId(null);
+    } else {
+      setLeads(prev => [{ id: uid(), createdAt: new Date().toLocaleDateString("en-IN"), ...form }, ...prev]);
+      showToast("✅ Lead added!");
+      setShowForm(false);
+    }
+    setForm(EMPTY_FORM);
+  };
+
+  const deleteLead = (id) => {
+    if (!window.confirm("Delete this lead?")) return;
+    setLeads(prev => prev.filter(l => l.id !== id));
+    showToast("🗑 Lead deleted.");
+  };
+
+  const updateStatus = (id, status) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+    showToast(`🔄 Status → ${status}`);
+  };
+
+  const saveNote = (id) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, notes: noteEdit.text } : l));
+    setNoteEdit({ id: null, text: "" });
+    showToast("📝 Note saved!");
+  };
+
+  const openEdit = (lead) => {
+    setForm({ name: lead.name, email: lead.email, phone: lead.phone,
+              source: lead.source, status: lead.status, notes: lead.notes });
+    setEditingId(lead.id); setEditModal(true);
+  };
+
+  const cancelForm = () => {
+    setShowForm(false); setForm(EMPTY_FORM);
+  };
+
+  // ── Filtered list ──
+  const visible = leads.filter(l => {
+    const matchStatus = filterStatus === "All" || l.status === filterStatus;
+    const q = search.toLowerCase();
+    const matchSearch = !q || l.name.toLowerCase().includes(q)
+      || l.email.toLowerCase().includes(q)
+      || l.source.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
   });
 
-  const tbody=document.getElementById('leads-body');
-  if(rows.length===0){
-    tbody.innerHTML=`<tr><td colspan="7"><div class="empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
-      <p>No leads found. Add your first lead to get started.</p>
-    </div></td></tr>`;
-    return;
-  }
+  // ── Stats ──
+  const stats = {
+    total:     leads.length,
+    new:       leads.filter(l => l.status === "New").length,
+    contacted: leads.filter(l => l.status === "Contacted").length,
+    converted: leads.filter(l => l.status === "Converted").length,
+  };
 
-  tbody.innerHTML=rows.map(l=>`
-    <tr>
-      <td style="color:var(--muted);font-size:12px;white-space:nowrap;">${fmtDate(l.date)}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:9px;">
-          ${showAv?`<div class="avatar" style="background:${avatarColor(l.name)}22;color:${avatarColor(l.name)};font-size:11px;">${initials(l.name)}</div>`:''}
-          <div>
-            <div style="font-weight:500;font-size:13px;">${esc(l.name)}</div>
+  // ── Form field helper ──
+  const setField = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  // ── Form JSX (reused for add + modal edit) ──
+  const FormFields = () => (
+    <div className="crm-form-grid">
+      <div className="crm-fg">
+        <label>Full Name *</label>
+        <input name="name" value={form.name} onChange={setField} placeholder="e.g. Ravi Kumar" />
+      </div>
+      <div className="crm-fg">
+        <label>Email *</label>
+        <input name="email" type="email" value={form.email} onChange={setField} placeholder="ravi@email.com" />
+      </div>
+      <div className="crm-fg">
+        <label>Phone</label>
+        <input name="phone" value={form.phone} onChange={setField} placeholder="+91 98765 43210" />
+      </div>
+      <div className="crm-fg">
+        <label>Source</label>
+        <select name="source" value={form.source} onChange={setField}>
+          {SOURCES.map(s => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className="crm-fg">
+        <label>Status</label>
+        <select name="status" value={form.status} onChange={setField}>
+          {STATUSES.map(s => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className="crm-fg full">
+        <label>Notes</label>
+        <textarea name="notes" value={form.notes} onChange={setField} placeholder="Any details about this lead..." />
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <style>{css}</style>
+
+      {/* ── NAVBAR ── */}
+      <nav className="crm-nav">
+        <div className="crm-nav-brand">
+          <span className="crm-nav-logo">CRM.</span>
+          <span className="crm-nav-sub">Lead Management System</span>
+        </div>
+        <span className="crm-nav-badge">Future Interns · Task 2</span>
+      </nav>
+
+      <main className="crm-main">
+
+        {/* ── STATS ── */}
+        <div className="crm-stats">
+          {[
+            { label: "Total Leads",  value: stats.total,     color: "#b87333" },
+            { label: "New",          value: stats.new,       color: "#3b82f6" },
+            { label: "Contacted",    value: stats.contacted, color: "#f59e0b" },
+            { label: "Converted",    value: stats.converted, color: "#10b981" },
+          ].map(s => (
+            <div className="crm-stat" key={s.label}>
+              <div className="crm-stat-num" style={{ color: s.color }}>{s.value}</div>
+              <div className="crm-stat-lbl">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── TOOLBAR ── */}
+        <div className="crm-toolbar">
+          <div className="crm-toolbar-left">
+            <span className="crm-title">All Leads</span>
+            <select className="crm-filter-select" value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}>
+              <option>All</option>
+              {STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <input className="crm-search" placeholder="🔍 Search name, email, source…"
+              value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <button className="btn btn-add" onClick={() => { setShowForm(p => !p); setForm(EMPTY_FORM); }}>
+            {showForm ? "✕ Cancel" : "+ Add Lead"}
+          </button>
+        </div>
+
+        {/* ── ADD FORM ── */}
+        {showForm && (
+          <div className="crm-form-panel">
+            <p className="crm-form-title">➕ New Lead</p>
+            <FormFields />
+            <div className="crm-form-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-cancel" onClick={cancelForm}>Cancel</button>
+              <button className="btn btn-add" onClick={saveLead}>Save Lead</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── TABLE ── */}
+        <div className="crm-table-wrap">
+          {visible.length === 0 ? (
+            <div className="crm-empty">
+              <div className="crm-empty-icon">📋</div>
+              {leads.length === 0
+                ? "No leads yet. Click \"+ Add Lead\" to get started!"
+                : "No leads match your filter."}
+            </div>
+          ) : (
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                  <th>Added</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((lead, i) => {
+                  const sm = STATUS_META[lead.status];
+                  return (
+                    <tr key={lead.id}>
+                      <td style={{ color: "#9a8878", fontWeight: 600 }}>{i + 1}</td>
+                      <td><strong>{lead.name}</strong></td>
+                      <td style={{ color: "#3b82f6" }}>{lead.email}</td>
+                      <td>{lead.phone || "—"}</td>
+                      <td><span className="source-tag">{lead.source}</span></td>
+
+                      {/* ── Status dropdown ── */}
+                      <td>
+                        <select
+                          className="status-select"
+                          value={lead.status}
+                          style={{ color: sm.color, borderColor: sm.color, background: sm.bg }}
+                          onChange={e => updateStatus(lead.id, e.target.value)}
+                        >
+                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </td>
+
+                      {/* ── Notes inline edit ── */}
+                      <td>
+                        {noteEdit.id === lead.id ? (
+                          <div className="note-edit-wrap">
+                            <input
+                              value={noteEdit.text}
+                              onChange={e => setNoteEdit(p => ({ ...p, text: e.target.value }))}
+                              onKeyDown={e => e.key === "Enter" && saveNote(lead.id)}
+                              autoFocus
+                            />
+                            <button className="btn btn-save" onClick={() => saveNote(lead.id)}>Save</button>
+                            <button className="btn btn-cancel" style={{ padding: "5px 10px", fontSize: "0.78rem" }}
+                              onClick={() => setNoteEdit({ id: null, text: "" })}>✕</button>
+                          </div>
+                        ) : (
+                          <span
+                            className="note-view"
+                            title={lead.notes || "Click to add note"}
+                            onClick={() => setNoteEdit({ id: lead.id, text: lead.notes || "" })}
+                          >{lead.notes}</span>
+                        )}
+                      </td>
+
+                      <td style={{ color: "#9a8878", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                        {lead.createdAt}
+                      </td>
+
+                      {/* ── Actions ── */}
+                      <td>
+                        <div className="crm-actions">
+                          <button className="btn-edit" onClick={() => openEdit(lead)}>✏️ Edit</button>
+                          <button className="btn-del"  onClick={() => deleteLead(lead.id)}>🗑</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </main>
+
+      {/* ── EDIT MODAL ── */}
+      {editModal && (
+        <div className="crm-modal-bg" onClick={e => e.target === e.currentTarget && setEditModal(false)}>
+          <div className="crm-modal">
+            <p className="crm-modal-title">✏️ Edit Lead</p>
+            <FormFields />
+            <div className="crm-modal-actions">
+              <button className="btn btn-cancel"
+                onClick={() => { setEditModal(false); setEditingId(null); setForm(EMPTY_FORM); }}>
+                Cancel
+              </button>
+              <button className="btn btn-add" onClick={saveLead}>Update Lead</button>
+            </div>
           </div>
         </div>
-      </td>
-      <td style="color:var(--muted);font-size:13px;">${esc(l.email)}</td>
-      <td>${sourceBadge(l.source)}</td>
-      <td>
-        <select class="filter-select" style="padding:4px 8px;font-size:12px;border-radius:99px;" onchange="quickStage('${l.id}',this.value)">
-          ${['New','Contacted','Converted','Lost'].map(s=>`<option${l.stage===s?' selected':''}>${s}</option>`).join('')}
-        </select>
-      </td>
-      <td style="max-width:180px;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.notes||'—')}</td>
-      <td>
-        <div class="actions">
-          <button class="btn btn-outline btn-sm" onclick="openEdit('${l.id}')" title="Edit">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Edit
-          </button>
-          <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);" onclick="openDelete('${l.id}')" title="Delete">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('');
-}
+      )}
 
-function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
-
-// ─── SORT ────────────────────────────────────────────────────────────────────
-function sortBy(f){ if(sortField===f) sortDir*=-1; else { sortField=f; sortDir=1; } renderTable(); }
-
-// ─── ADD LEAD ────────────────────────────────────────────────────────────────
-function openAddLead(){ document.getElementById('add-lead-panel').style.display=''; }
-function closeAddLead(){ document.getElementById('add-lead-panel').style.display='none'; }
-
-function addLead(){
-  const name=document.getElementById('f-name').value.trim();
-  const email=document.getElementById('f-email').value.trim();
-  const source=document.getElementById('f-source').value;
-  let ok=true;
-  ['f-name','f-email'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el.value.trim()){ el.classList.add('error'); ok=false; } else el.classList.remove('error');
-  });
-  if(!ok){ toast('Please fill in required fields.','error'); return; }
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ document.getElementById('f-email').classList.add('error'); toast('Enter a valid email.','error'); return; }
-
-  const lead={ id:uid(), name, email, source, stage:'New', notes:'', date:new Date().toISOString(), history:[{time:new Date().toISOString(),text:'Lead created'}] };
-  leads.unshift(lead);
-  save();
-  document.getElementById('f-name').value='';
-  document.getElementById('f-email').value='';
-  closeAddLead();
-  if(document.getElementById('n-new')?.checked!==false) toast(`Lead "${name}" added successfully!`,'success');
-  refresh();
+      {/* ── TOAST ── */}
+      <div className={`crm-toast${toast ? " show" : ""}`}>{toast}</div>
+    </>
+  );
 }
-
-// ─── QUICK STAGE ─────────────────────────────────────────────────────────────
-function quickStage(id,stage){
-  const l=leads.find(x=>x.id===id); if(!l) return;
-  const old=l.stage; l.stage=stage;
-  l.history.push({time:new Date().toISOString(),text:`Stage changed: ${old} → ${stage}`});
-  save();
-  if(document.getElementById('n-stage')?.checked!==false) toast(`"${l.name}" moved to ${stage}`,'info');
-  refresh();
-}
-
-// ─── EDIT ────────────────────────────────────────────────────────────────────
-let editId=null;
-function openEdit(id){
-  const l=leads.find(x=>x.id===id); if(!l) return;
-  editId=id;
-  document.getElementById('edit-name').value=l.name;
-  document.getElementById('edit-email').value=l.email;
-  document.getElementById('edit-source').value=l.source;
-  document.getElementById('edit-stage').value=l.stage;
-  document.getElementById('edit-notes').value=l.notes||'';
-  renderHistory(l);
-  document.getElementById('edit-modal').style.display='flex';
-}
-function renderHistory(l){
-  const h=l.history||[];
-  document.getElementById('edit-history').innerHTML=h.length?h.slice().reverse().map(e=>`
-    <div class="log-entry">
-      <span class="log-time">${new Date(e.time).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</span>
-      <span class="log-text">${esc(e.text)}</span>
-    </div>`).join(''):'<p style="font-size:12px;color:var(--muted);">No interactions logged yet.</p>';
-}
-function addLog(){
-  const txt=document.getElementById('new-log').value.trim(); if(!txt) return;
-  const l=leads.find(x=>x.id===editId); if(!l) return;
-  l.history.push({time:new Date().toISOString(),text:txt});
-  document.getElementById('new-log').value='';
-  renderHistory(l);
-  save();
-}
-function saveEdit(){
-  const l=leads.find(x=>x.id===editId); if(!l) return;
-  const name=document.getElementById('edit-name').value.trim();
-  const email=document.getElementById('edit-email').value.trim();
-  if(!name||!email){ toast('Name and email are required.','error'); return; }
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email.','error'); return; }
-  const oldStage=l.stage, newStage=document.getElementById('edit-stage').value;
-  l.name=name; l.email=email; l.source=document.getElementById('edit-source').value;
-  l.stage=newStage; l.notes=document.getElementById('edit-notes').value;
-  if(oldStage!==newStage) l.history.push({time:new Date().toISOString(),text:`Stage changed: ${oldStage} → ${newStage}`});
-  save(); closeEdit(); refresh(); toast('Lead updated.','success');
-}
-function closeEdit(){ document.getElementById('edit-modal').style.display='none'; }
-function closeEditIfOutside(e){ if(e.target.id==='edit-modal') closeEdit(); }
-
-// ─── DELETE ──────────────────────────────────────────────────────────────────
-function openDelete(id){ pendingDeleteId=id; const l=leads.find(x=>x.id===id); document.getElementById('delete-name').textContent=l?.name||'this lead'; document.getElementById('delete-modal').style.display='flex'; }
-function closeDelete(){ document.getElementById('delete-modal').style.display='none'; pendingDeleteId=null; }
-function closeDeleteIfOutside(e){ if(e.target.id==='delete-modal') closeDelete(); }
-function confirmDelete(){
-  if(!pendingDeleteId) return;
-  const l=leads.find(x=>x.id===pendingDeleteId);
-  leads=leads.filter(x=>x.id!==pendingDeleteId);
-  save(); closeDelete(); refresh();
-  if(document.getElementById('n-del')?.checked!==false) toast(`"${l?.name}" deleted.`,'error');
-}
-
-// ─── SETTINGS ────────────────────────────────────────────────────────────────
-function openSettings(){ document.getElementById('settings-modal').style.display='flex'; }
-function closeSettings(){ document.getElementById('settings-modal').style.display='none'; }
-function closeSettingsIfOutside(e){ if(e.target.id==='settings-modal') closeSettings(); }
-function switchTab(name){
-  document.querySelectorAll('.tab').forEach((t,i)=>{ const tabs=['general','pipeline','notifications','data']; t.classList.toggle('active',tabs[i]===name); });
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
-}
-function saveSettings(){ closeSettings(); toast('Settings saved.','success'); }
-function applyCompact(cb){
-  document.querySelectorAll('tbody td').forEach(td=>td.style.padding=cb.checked?'7px 14px':'12px 14px');
-}
-function clearAllLeads(){
-  if(!confirm('Delete ALL leads permanently?')) return;
-  leads=[]; save(); closeSettings(); refresh(); toast('All leads cleared.','error');
-}
-function loadSampleData(){
-  const samples=[
-    {id:uid(),name:'Priya Sharma',email:'priya.sharma@techco.in',source:'LinkedIn Inbound',stage:'New',notes:'Interested in enterprise plan',date:new Date(Date.now()-5*86400000).toISOString(),history:[{time:new Date(Date.now()-5*86400000).toISOString(),text:'Lead created via LinkedIn'}]},
-    {id:uid(),name:'Arjun Mehta',email:'arjun@startuphub.io',source:'Website Contact Form',stage:'Contacted',notes:'Sent proposal on 3 Jun',date:new Date(Date.now()-10*86400000).toISOString(),history:[{time:new Date(Date.now()-10*86400000).toISOString(),text:'Lead created'},{time:new Date(Date.now()-8*86400000).toISOString(),text:'Sent introduction email'},{time:new Date(Date.now()-6*86400000).toISOString(),text:'Stage changed: New → Contacted'}]},
-    {id:uid(),name:'Sneha Iyer',email:'sneha.iyer@designlab.com',source:'Referral',stage:'Converted',notes:'Signed 6-month contract',date:new Date(Date.now()-20*86400000).toISOString(),history:[{time:new Date(Date.now()-20*86400000).toISOString(),text:'Lead created via Referral'},{time:new Date(Date.now()-15*86400000).toISOString(),text:'Discovery call completed'},{time:new Date(Date.now()-10*86400000).toISOString(),text:'Proposal sent'},{time:new Date(Date.now()-5*86400000).toISOString(),text:'Stage changed: Contacted → Converted'}]},
-    {id:uid(),name:'Rahul Nair',email:'rahul.n@logix.co',source:'Cold Email Outreach',stage:'New',notes:'',date:new Date(Date.now()-2*86400000).toISOString(),history:[{time:new Date(Date.now()-2*86400000).toISOString(),text:'Lead created via cold email'}]},
-    {id:uid(),name:'Meera Pillai',email:'meera@cloudventures.in',source:'LinkedIn Inbound',stage:'Lost',notes:'Chose competitor',date:new Date(Date.now()-30*86400000).toISOString(),history:[{time:new Date(Date.now()-30*86400000).toISOString(),text:'Lead created'},{time:new Date(Date.now()-12*86400000).toISOString(),text:'Stage changed: Contacted → Lost'}]},
-  ];
-  leads=[...samples,...leads]; save(); closeSettings(); refresh(); toast('Sample data loaded!','success');
-}
-
-// ─── EXPORT ──────────────────────────────────────────────────────────────────
-function exportCSV(){
-  const headers=['Date','Name','Email','Source','Stage','Notes'];
-  const rows=leads.map(l=>[fmtDate(l.date),l.name,l.email,l.source,l.stage,(l.notes||'').replace(/"/g,'""')].map(v=>`"${v}"`).join(','));
-  const csv=[headers.join(','),...rows].join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='leads-export.csv'; a.click();
-  if(document.getElementById('n-export')?.checked!==false) toast('CSV exported successfully.','success');
-}
-
-// ─── TOAST ───────────────────────────────────────────────────────────────────
-function toast(msg,type='info'){
-  const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg;
-  document.getElementById('toast-container').appendChild(el);
-  setTimeout(()=>el.remove(),3200);
-}
-
-// ─── SAVE / REFRESH ──────────────────────────────────────────────────────────
-function save(){ localStorage.setItem('crm_leads',JSON.stringify(leads)); }
-function refresh(){ renderStats(); renderTable(); }
-
-// ─── INIT ────────────────────────────────────────────────────────────────────
-refresh();
-if(leads.length===0){
-  setTimeout(()=>toast('No leads yet — click "Add New Lead" or load sample data in Settings → Data.','info'),600);
-}
-</script>
-</body>
-</html>
